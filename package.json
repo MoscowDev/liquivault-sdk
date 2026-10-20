@@ -1,0 +1,55 @@
+{
+  "name": "@liquivault/sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for LiquiVault — Decentralized RWA Invoice Factoring & Liquidity Vaults on Stellar Soroban",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "stellar",
+    "soroban",
+    "rwa",
+    "invoice-factoring",
+    "liquidity-pool",
+    "defi",
+    "liquivault",
+    "usdc",
+    "freighter"
+  ],
+  "author": "LiquiVault Protocol Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "@stellar/freighter-api": "^2.0.0",
+    "@stellar/stellar-sdk": "^12.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsup": "^8.1.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
