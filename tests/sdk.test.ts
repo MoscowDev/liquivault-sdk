@@ -96,7 +96,7 @@ describe('@liquivault/sdk Unit Tests', () => {
   });
 
   it('executes end-to-end mocked RPC contract calls for minting, factoring, and LP deposit', async () => {
-    const mockTransport = vi.fn(async (_endpoint: string, method: string, params: Record<string, unknown>) => {
+    const mockTransport = vi.fn(async (_endpoint: string, method: string, _params: Record<string, unknown>) => {
       if (method === 'simulateTransaction') {
         return {
           success: true,

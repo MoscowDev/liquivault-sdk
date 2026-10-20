@@ -22,7 +22,7 @@ export class FreighterWalletAdapter {
   public async isConnected(): Promise<boolean> {
     try {
       const res = await freighterApi.isConnected();
-      return Boolean(res && (typeof res === 'boolean' ? res : res.isConnected));
+      return Boolean(res);
     } catch {
       return false;
     }
@@ -32,13 +32,13 @@ export class FreighterWalletAdapter {
    * Requests permission and retrieves the active user's Stellar public key and network.
    */
   public async connect(): Promise<FreighterConnectionResult> {
-    const access = await freighterApi.requestAccess();
-    if (access.error) {
-      throw new Error(`Freighter access denied: ${access.error}`);
+    const publicKey = await freighterApi.requestAccess();
+    if (!publicKey) {
+      throw new Error('Freighter access denied or no public key returned');
     }
     const netDetails = await freighterApi.getNetworkDetails();
     return {
-      publicKey: access.address,
+      publicKey,
       network: netDetails.network || 'TESTNET',
       networkPassphrase: netDetails.networkPassphrase || this.networkPassphrase,
     };
@@ -48,14 +48,14 @@ export class FreighterWalletAdapter {
    * Signs a Soroban transaction XDR string using Freighter.
    */
   public async signTransaction(xdr: string, accountToSign?: string): Promise<string> {
-    const signed = await freighterApi.signTransaction(xdr, {
+    const signedTxXdr = await freighterApi.signTransaction(xdr, {
       networkPassphrase: this.networkPassphrase,
-      address: accountToSign,
+      accountToSign,
     });
-    if (signed.error) {
-      throw new Error(`Freighter signing error: ${signed.error}`);
+    if (!signedTxXdr) {
+      throw new Error('Freighter signing returned empty transaction XDR');
     }
-    return signed.signedTxXdr;
+    return signedTxXdr;
   }
 
   /**
