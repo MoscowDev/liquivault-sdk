@@ -1,52 +1,46 @@
-# Contributing to `@liquivault/sdk` (`liquivault-sdk`)
+## LiquiVault SDK Contribution Guide
 
-Thank you for your interest in contributing to **`@liquivault/sdk`**, the official TypeScript SDK for the **LiquiVault** decentralized trade invoice factoring protocol on **Stellar Soroban**! We welcome contributors from **Drips Wave** and the Stellar developer community.
+We appreciate any help improving the LiquiVault TypeScript SDK. Follow these steps to get started.
 
----
+### 1️⃣ Fork & Clone
+```bash
+# Fork the repo on GitHub first
+git clone https://github.com/<your‑username>/liquivault-sdk.git
+cd liquivault-sdk
+```
 
-## Prerequisites
+### 2️⃣ Create a Branch
+```bash
+git checkout -b my‑sdk‑feature
+```
 
-- **Node.js**: `>= 20.x`
-- **npm**: `>= 10.x`
+### 3️⃣ Install Dependencies
+```bash
+npm ci   # installs exact versions from package-lock.json
+```
 
----
+### 4️⃣ Development Workflow
+- **Run tests**: `npm test`
+- **Run type‑checking**: `npm run typecheck`
+- **Build the library**: `npm run build`
+- **Lint (if you add eslint config)**: `npm run lint`
 
-## Development Workflow
+### 5️⃣ Commit & Push
+```bash
+git add .
+git commit -m "feat: short description"
+git push origin my‑sdk‑feature
+```
 
-1. **Fork & Clone the Repository**
-   ```bash
-   git clone https://github.com/<your-username>/liquivault-sdk.git
-   cd liquivault-sdk
-   npm install
-   ```
+Open a Pull Request on GitHub targeting `main`.
 
-2. **Create a Branch**
-   ```bash
-   git checkout -b feat/issue-5-soroban-xdr-builder
-   ```
+### 6️⃣ Review Checklist (maintainers)
+- ✅ All `npm test` pass.
+- ✅ `npm run typecheck` reports no errors.
+- ✅ Build succeeds (`npm run build`).
+- ✅ Code follows the project’s style and updates docs when needed.
 
-3. **Run Tests & Typechecks**
-   ```bash
-   npm run typecheck
-   npm test
-   ```
-
-4. **Build Dual ESM/CJS Bundles**
-   ```bash
-   npm run build
-   ```
-
----
-
-## Code Standards
-
-- **Strict TypeScript**: Avoid `any`; define explicit interfaces in `src/types/index.ts`.
-- **BigInt Precision**: Represent all on-chain USDC amounts (7-decimal stroops) and invoice IDs as `bigint` to match Soroban `i128` and `u64` types without floating-point precision loss.
-- **Test Coverage**: Add unit tests in `tests/sdk.test.ts` (using `vitest`) for all new contract client methods, transaction builders, and RPC helpers.
-
----
-
-## Submitting a Pull Request
-
-1. Verify that `npm run typecheck`, `npm test`, and `npm run build` succeed with zero errors.
-2. Link the target issue in your PR description (`Closes #<issue-number>`).
+### Resources
+- **SDK docs**: see `README.md`.
+- **Stellar Soroban SDK**: https://soroban.stellar.org/docs
+- **Drips Wave Guidelines**: https://drips.network/wave-guidelines

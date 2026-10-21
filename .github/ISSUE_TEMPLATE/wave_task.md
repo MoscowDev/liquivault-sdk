@@ -1,24 +1,20 @@
+## Wave Task Template
+
 ---
-name: Drips Wave Task / Feature Request
-about: Scoped task for Stellar / Drips Wave contributors
-title: "[WAVE] "
-labels: ["drips-wave", "help wanted"]
-assignees: ''
+### Description
+
+Provide a concise description of the task you are proposing. Include any background information that helps reviewers understand the context.
+
 ---
+### Acceptance Criteria
 
-## Context & Objective
+- [ ] Clearly defined outcome(s) (e.g., new endpoint, bug fix, UI change)
+- [ ] Unit / integration tests added and passing
+- [ ] Documentation updated if needed
+- [ ] No linting or CI failures
 
-Describe the SDK feature, Soroban XDR builder enhancement, or RPC method needed in `@liquivault/sdk`.
+---
+### Additional Notes
 
-## Technical Requirements
-
-- **Target Module(s)**: `src/contracts/` | `src/builders/` | `src/wallet/` | `src/types/`
-- **Details**:
-  1. 
-  2. 
-
-## Acceptance Criteria
-
-- [ ] Strict TypeScript types exported in `src/types/index.ts`
-- [ ] Unit tests added in `tests/sdk.test.ts`
-- [ ] `npm run typecheck`, `npm test`, and `npm run build` succeed
+- Add links to relevant design docs or issue numbers.
+- Mention any required dependencies or external services.

@@ -1,12 +1,21 @@
-## Summary
+## LiquiVault Pull Request Template
 
-Closes #<issue-number>
+---
+### Summary
 
-Briefly describe the changes introduced in this Pull Request.
+- Brief description of the change.
+- Related issue(s) (e.g. `#42`).
 
-## Verification & Testing
+---
+### Checklist
 
-- [ ] `npm run typecheck` passes with zero errors
-- [ ] `npm test` (Vitest suite) passes
-- [ ] `npm run build` generates dual ESM/CJS/DTS bundles cleanly
-- [ ] Added unit test coverage in `tests/sdk.test.ts`
+- [ ] Code builds (`npm run build` / `cargo build`).
+- [ ] Tests pass (`npm test` / `cargo test`).
+- [ ] Linting passes (`npm run lint`).
+- [ ] Updated documentation where applicable.
+- [ ] Changelog entry added if this is a public release.
+
+---
+### Additional Notes
+
+Provide any extra context, screenshots, or performance numbers.
