@@ -129,4 +129,40 @@ export class LiquiVaultTransactionBuilder {
       [provider, sharesToBurn]
     );
   }
+
+  /**
+   * Builds a Soroban transaction invoking `liquidity_pool.deposit_junior` (first-loss tranche).
+   */
+  public async buildDepositJuniorTx(provider: string, amountUsdc: bigint): Promise<string> {
+    return this.encodeEnvelope(
+      this.config.contracts.liquidityPool,
+      'deposit_junior',
+      provider,
+      [provider, amountUsdc]
+    );
+  }
+
+  /**
+   * Builds a Soroban transaction invoking `liquidity_pool.withdraw_junior`.
+   */
+  public async buildWithdrawJuniorTx(provider: string, sharesToBurn: bigint): Promise<string> {
+    return this.encodeEnvelope(
+      this.config.contracts.liquidityPool,
+      'withdraw_junior',
+      provider,
+      [provider, sharesToBurn]
+    );
+  }
+
+  /**
+   * Builds a Soroban transaction invoking `liquidity_pool.set_junior_yield_bps` (admin only).
+   */
+  public async buildSetJuniorYieldBpsTx(admin: string, bps: number): Promise<string> {
+    return this.encodeEnvelope(
+      this.config.contracts.liquidityPool,
+      'set_junior_yield_bps',
+      admin,
+      [admin, bps]
+    );
+  }
 }

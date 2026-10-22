@@ -167,3 +167,27 @@ export interface TransactionResult<T = unknown> {
   returnValue: T;
   feeChargedStroops: string;
 }
+
+/** First-loss (junior) tranche of the liquidity pool. Senior capital is tracked in `PoolState`. */
+export interface JuniorState {
+  totalAssets: bigint;
+  totalShares: bigint;
+}
+
+export interface JuniorWithdrawPreview extends WithdrawPreview {
+  /** True if the withdrawal leaves junior capital >= 10% of deployed capital. */
+  coverageSatisfied: boolean;
+  /** Junior capital remaining after the withdrawal. */
+  remainingJuniorAssets: bigint;
+}
+
+export interface YieldSplit {
+  juniorYield: bigint;
+  seniorYield: bigint;
+  protocolCut: bigint;
+}
+
+export interface LossSplit {
+  juniorLoss: bigint;
+  seniorLoss: bigint;
+}

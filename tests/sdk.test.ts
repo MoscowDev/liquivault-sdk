@@ -159,4 +159,86 @@ describe('@liquivault/sdk Unit Tests', () => {
     expect(invoice.invoiceId).toBe(42n);
     expect(sdk.invoiceRegistry.isFactorable(invoice, 1_750_000_000)).toBe(true);
   });
-});
+
+  describe('junior tranche', () => {
+    const pool: PoolState = {
+      admin: 'GADMIN',
+      usdcToken: MOCK_CONFIG.contracts.usdcToken,
+      factoringEscrow: MOCK_CONFIG.contracts.factoringEscrow,
+      treasury: 'GTREASURY',
+      totalAssets: 60_000_0000000n,
+      totalShares: 60_000_0000000n,
+      deployedCapital: 50_000_0000000n,
+      cumulativeYield: 0n,
+      reserveFactorBps: 1000,
+      paused: false,
+    };
+    const junior = { totalAssets: 20_000_0000000n, totalShares: 20_000_0000000n };
+
+    it('splits yield like the contract (10% cut, 30% of LP yield to junior)', () => {
+      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
+      const split = sdk.liquidityPool.splitYield(2_000_0000000n, 1000, junior);
+      expect(split.protocolCut).toBe(200_0000000n);
+      expect(split.juniorYield).toBe(540_0000000n);
+      expect(split.seniorYield).toBe(1_260_0000000n);
+    });
+
+    it('gives senior all LP yield when junior is empty', () => {
+      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
+      const split = sdk.liquidityPool.splitYield(1_000_0000000n, 1000, {
+        totalAssets: 0n,
+        totalShares: 0n,
+      });
+      expect(split.juniorYield).toBe(0n);
+      expect(split.seniorYield).toBe(900_0000000n);
+    });
+
+    it('applies losses to junior first', () => {
+      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
+      expect(sdk.liquidityPool.splitLoss(15_000_0000000n, junior)).toEqual({
+        juniorLoss: 15_000_0000000n,
+        seniorLoss: 0n,
+      });
+      expect(sdk.liquidityPool.splitLoss(25_000_0000000n, junior)).toEqual({
+        juniorLoss: 20_000_0000000n,
+        seniorLoss: 5_000_0000000n,
+      });
+    });
+
+    it('previews junior withdrawals against the 10% coverage rule', () => {
+      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
+      // Deployed 50k -> junior must keep >= 5k.
+      const half = sdk.liquidityPool.previewWithdrawJunior(10_000_0000000n, pool, junior);
+      expect(half.coverageSatisfied).toBe(true);
+      expect(half.assetsToReceive).toBe(10_000_0000000n);
+      expect(half.sufficientIdleLiquidity).toBe(true);
+
+      const all = sdk.liquidityPool.previewWithdrawJunior(20_000_0000000n, pool, junior);
+      expect(all.coverageSatisfied).toBe(false);
+    });
+
+    it('builds deposit/withdraw junior transactions targeting the pool contract', async () => {
+      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
+      const dep = sdk.builder.decodeEnvelope(
+        await sdk.builder.buildDepositJuniorTx('GLP', 5n)
+      );
+      expect(dep.method).toBe('deposit_junior');
+      expect(dep.contractId).toBe(MOCK_CONFIG.contracts.liquidityPool);
+      const wd = sdk.builder.decodeEnvelope(await sdk.builder.buildWithdrawJuniorTx('GLP', 3n));
+      expect(wd.method).toBe('withdraw_junior');
+      await expect(
+        sdk.liquidityPool.depositJunior('GLP', 0n, async (x) => x)
+      ).rejects.toThrow();
+    });
+
+    it('counts junior assets as idle liquidity for senior withdrawals', () => {
+      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
+      const tight = { ...pool, deployedCapital: 70_000_0000000n };
+      expect(
+        sdk.liquidityPool.previewWithdraw(5_000_0000000n, tight).sufficientIdleLiquidity
+      ).toBe(false);
+      expect(
+        sdk.liquidityPool.previewWithdraw(5_000_0000000n, tight, junior).sufficientIdleLiquidity
+      ).toBe(true);
+    });
+  });});
