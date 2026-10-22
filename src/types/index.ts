@@ -191,3 +191,11 @@ export interface LossSplit {
   juniorLoss: bigint;
   seniorLoss: bigint;
 }
+
+export interface RateConfig {
+  tierAAnnualBps: number;
+  tierBAnnualBps: number;
+  tierCAnnualBps: number;
+  originationFeeBps: number;
+  gracePeriodSeconds: bigint;
+}

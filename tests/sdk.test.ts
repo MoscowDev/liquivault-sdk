@@ -241,4 +241,21 @@ describe('@liquivault/sdk Unit Tests', () => {
         sdk.liquidityPool.previewWithdraw(5_000_0000000n, tight, junior).sufficientIdleLiquidity
       ).toBe(true);
     });
-  });});
+  });
+    it('generates authentic native Soroban InvokeHostFunction operation XDR using @stellar/stellar-sdk', () => {
+      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
+      // Valid contract address on Stellar
+      const contractId = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM';
+      const opXdr = sdk.builder.buildOperationXdr(contractId, 'deposit_junior', [
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        500_0000000n,
+      ]);
+      expect(typeof opXdr).toBe('string');
+      expect(opXdr.length).toBeGreaterThan(20);
+      
+      const op = sdk.builder.buildOperation(contractId, 'deposit_junior', [
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        500_0000000n,
+      ]);
+      expect(op.body().switch().name).toBe('invokeHostFunction');
+    });});
