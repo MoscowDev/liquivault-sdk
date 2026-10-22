@@ -58,7 +58,7 @@ export class InvoiceRegistryClient {
   }
 
   /**
-   * Builds and submits a `verify_invoice` transaction by an authorized verifier oracle or debtor.
+   * Builds and submits a `verify_invoice` transaction by an authorized verifier oracle or the admin (the debtor is not authorized).
    */
   public async verifyInvoice(
     caller: string,
