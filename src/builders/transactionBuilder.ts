@@ -1,6 +1,20 @@
-import { Buffer } from 'buffer';
-import { Account, Address, BASE_FEE, Contract, nativeToScVal, rpc, TransactionBuilder, xdr } from '@stellar/stellar-sdk';
-import { CreateInvoiceParams, LiquiVaultConfig, RateConfig, RiskTier } from '../types';
+import { Buffer } from "buffer";
+import {
+  Account,
+  Address,
+  BASE_FEE,
+  Contract,
+  nativeToScVal,
+  rpc,
+  TransactionBuilder,
+  xdr,
+} from "@stellar/stellar-sdk";
+import {
+  CreateInvoiceParams,
+  LiquiVaultConfig,
+  RateConfig,
+  RiskTier,
+} from "../types";
 
 /**
  * Converts a JS/TS value into an authentic Stellar Soroban ScVal.
@@ -10,32 +24,32 @@ export function convertArgToScVal(arg: unknown): xdr.ScVal {
   if (arg === null || arg === undefined) {
     return xdr.ScVal.scvVoid();
   }
-  if (typeof arg === 'boolean') {
+  if (typeof arg === "boolean") {
     return xdr.ScVal.scvBool(arg);
   }
-  if (typeof arg === 'bigint') {
-    return nativeToScVal(arg, { type: 'i128' });
+  if (typeof arg === "bigint") {
+    return nativeToScVal(arg, { type: "i128" });
   }
-  if (typeof arg === 'number') {
+  if (typeof arg === "number") {
     if (Number.isInteger(arg) && arg >= 0 && arg <= 0xffffffff) {
       return xdr.ScVal.scvU32(arg);
     }
-    return nativeToScVal(BigInt(Math.floor(arg)), { type: 'i128' });
+    return nativeToScVal(BigInt(Math.floor(arg)), { type: "i128" });
   }
-  if (typeof arg === 'string') {
+  if (typeof arg === "string") {
     if (/^[0-9a-fA-F]{64}$/.test(arg)) {
-      return xdr.ScVal.scvBytes(Buffer.from(arg, 'hex'));
+      return xdr.ScVal.scvBytes(Buffer.from(arg, "hex"));
     }
     try {
-      if ((arg.startsWith('G') || arg.startsWith('C')) && arg.length === 56) {
+      if ((arg.startsWith("G") || arg.startsWith("C")) && arg.length === 56) {
         return new Address(arg).toScVal();
       }
     } catch {
       // Fall through to native string encoding
     }
-    if (arg === 'TierA') return xdr.ScVal.scvU32(0);
-    if (arg === 'TierB') return xdr.ScVal.scvU32(1);
-    if (arg === 'TierC') return xdr.ScVal.scvU32(2);
+    if (arg === "TierA") return xdr.ScVal.scvU32(0);
+    if (arg === "TierB") return xdr.ScVal.scvU32(1);
+    if (arg === "TierC") return xdr.ScVal.scvU32(2);
 
     return nativeToScVal(arg);
   }
@@ -55,42 +69,86 @@ export class LiquiVaultTransactionBuilder {
   /**
    * Encodes a contract call into a deterministic transaction envelope with native Soroban XDR.
    */
-  private async encodeEnvelope(contractId: string, method: string, signer: string, args: unknown[]): Promise<string> {
-    const server = new rpc.Server(this.config.network.rpcUrl, { allowHttp: this.config.network.network === 'standalone' });
+  private async encodeEnvelope(
+    contractId: string,
+    method: string,
+    signer: string,
+    args: unknown[],
+  ): Promise<string> {
+    const server = new rpc.Server(this.config.network.rpcUrl, {
+      allowHttp: this.config.network.network === "standalone",
+    });
     const source = await server.getAccount(signer);
     return this.buildTransaction(source, contractId, method, args).toXDR();
   }
 
-  public buildTransaction(source: Account, contractId: string, method: string, args: unknown[]) {
-    return new TransactionBuilder(source, { fee: BASE_FEE, networkPassphrase: this.config.network.networkPassphrase })
-      .addOperation(this.buildOperation(contractId, method, args)).setTimeout(300).build();
+  public buildTransaction(
+    source: Account,
+    contractId: string,
+    method: string,
+    args: unknown[],
+  ) {
+    return new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: this.config.network.networkPassphrase,
+    })
+      .addOperation(this.buildOperation(contractId, method, args))
+      .setTimeout(300)
+      .build();
   }
 
   /**
    * Builds an authentic native Soroban `InvokeHostFunction` operation for a contract call.
    */
-  public buildOperation(contractId: string, method: string, args: unknown[]): xdr.Operation {
-    const u64Methods = ['get_invoice', 'get_escrow_record', 'preview_factoring_quote'];
+  public buildOperation(
+    contractId: string,
+    method: string,
+    args: unknown[],
+  ): xdr.Operation {
+    const u64Methods = [
+      "get_invoice",
+      "get_escrow_record",
+      "preview_factoring_quote",
+    ];
     const scArgs = args.map((arg, index) => {
-      if ((u64Methods.includes(method) && index === 0) ||
-          (['verify_invoice', 'factor_invoice', 'settle_invoice', 'mark_defaulted'].includes(method) && index === 1) ||
-          (method === 'mint_invoice' && index === 4)) {
-        return nativeToScVal(BigInt(arg as bigint), { type: 'u64' });
+      if (
+        (u64Methods.includes(method) && index === 0) ||
+        ([
+          "verify_invoice",
+          "factor_invoice",
+          "settle_invoice",
+          "mark_defaulted",
+        ].includes(method) &&
+          index === 1) ||
+        (method === "mint_invoice" && index === 4)
+      ) {
+        return nativeToScVal(BigInt(arg as bigint), { type: "u64" });
       }
-      if (method === 'update_rate_config' && index === 1) {
+      if (method === "update_rate_config" && index === 1) {
         const cfg = arg as RateConfig;
         const fields = {
-          tier_a_annual_bps: nativeToScVal(cfg.tierAAnnualBps, { type: 'u32' }),
-          tier_b_annual_bps: nativeToScVal(cfg.tierBAnnualBps, { type: 'u32' }),
-          tier_c_annual_bps: nativeToScVal(cfg.tierCAnnualBps, { type: 'u32' }),
-          origination_fee_bps: nativeToScVal(cfg.originationFeeBps, { type: 'u32' }),
-          grace_period_seconds: nativeToScVal(cfg.gracePeriodSeconds, { type: 'u64' }),
+          tier_a_annual_bps: nativeToScVal(cfg.tierAAnnualBps, { type: "u32" }),
+          tier_b_annual_bps: nativeToScVal(cfg.tierBAnnualBps, { type: "u32" }),
+          tier_c_annual_bps: nativeToScVal(cfg.tierCAnnualBps, { type: "u32" }),
+          origination_fee_bps: nativeToScVal(cfg.originationFeeBps, {
+            type: "u32",
+          }),
+          grace_period_seconds: nativeToScVal(cfg.gracePeriodSeconds, {
+            type: "u64",
+          }),
         };
-        return xdr.ScVal.scvMap(Object.entries(fields).sort(([a], [b]) => a.localeCompare(b)).map(([key, val]) =>
-          new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol(key), val })));
+        return xdr.ScVal.scvMap(
+          Object.entries(fields)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(
+              ([key, val]) =>
+                new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol(key), val }),
+            ),
+        );
       }
       // invoice_number is a String even when it happens to look like a digest/address.
-      if (method === 'mint_invoice' && index === 6) return xdr.ScVal.scvString(arg as string);
+      if (method === "mint_invoice" && index === 6)
+        return xdr.ScVal.scvString(arg as string);
       return convertArgToScVal(arg);
     });
     const contract = new Contract(contractId);
@@ -100,20 +158,31 @@ export class LiquiVaultTransactionBuilder {
   /**
    * Returns base64 XDR of the native Soroban contract call operation.
    */
-  public buildOperationXdr(contractId: string, method: string, args: unknown[]): string {
-    return this.buildOperation(contractId, method, args).toXDR('base64');
+  public buildOperationXdr(
+    contractId: string,
+    method: string,
+    args: unknown[],
+  ): string {
+    return this.buildOperation(contractId, method, args).toXDR("base64");
   }
 
   /**
    * Builds a Soroban transaction invoking `invoice_registry.mint_invoice`.
    */
-  public async buildMintInvoiceTx(params: CreateInvoiceParams): Promise<string> {
-    if (!params.metadataHash || !/^[0-9a-fA-F]{64}$/.test(params.metadataHash)) {
-      throw new Error('metadataHash must be a valid 64-character hex SHA-256 digest');
+  public async buildMintInvoiceTx(
+    params: CreateInvoiceParams,
+  ): Promise<string> {
+    if (
+      !params.metadataHash ||
+      !/^[0-9a-fA-F]{64}$/.test(params.metadataHash)
+    ) {
+      throw new Error(
+        "metadataHash must be a valid 64-character hex SHA-256 digest",
+      );
     }
     return this.encodeEnvelope(
       this.config.contracts.invoiceRegistry,
-      'mint_invoice',
+      "mint_invoice",
       params.merchant,
       [
         params.merchant,
@@ -124,7 +193,7 @@ export class LiquiVaultTransactionBuilder {
         params.metadataHash,
         params.invoiceNumber,
         params.riskTier,
-      ]
+      ],
     );
   }
 
@@ -134,133 +203,163 @@ export class LiquiVaultTransactionBuilder {
   public async buildVerifyInvoiceTx(
     caller: string,
     invoiceId: bigint,
-    riskTier: RiskTier
+    riskTier: RiskTier,
   ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.invoiceRegistry,
-      'verify_invoice',
+      "verify_invoice",
       caller,
-      [caller, invoiceId, riskTier]
+      [caller, invoiceId, riskTier],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `factoring_escrow.factor_invoice`.
    */
-  public async buildFactorInvoiceTx(merchant: string, invoiceId: bigint): Promise<string> {
+  public async buildFactorInvoiceTx(
+    merchant: string,
+    invoiceId: bigint,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.factoringEscrow,
-      'factor_invoice',
+      "factor_invoice",
       merchant,
-      [merchant, invoiceId]
+      [merchant, invoiceId],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `factoring_escrow.settle_invoice`.
    */
-  public async buildSettleInvoiceTx(payer: string, invoiceId: bigint): Promise<string> {
+  public async buildSettleInvoiceTx(
+    payer: string,
+    invoiceId: bigint,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.factoringEscrow,
-      'settle_invoice',
+      "settle_invoice",
       payer,
-      [payer, invoiceId]
+      [payer, invoiceId],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `liquidity_pool.deposit`.
    */
-  public async buildDepositTx(provider: string, amountUsdc: bigint): Promise<string> {
+  public async buildDepositTx(
+    provider: string,
+    amountUsdc: bigint,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.liquidityPool,
-      'deposit',
+      "deposit",
       provider,
-      [provider, amountUsdc]
+      [provider, amountUsdc],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `liquidity_pool.withdraw`.
    */
-  public async buildWithdrawTx(provider: string, sharesToBurn: bigint): Promise<string> {
+  public async buildWithdrawTx(
+    provider: string,
+    sharesToBurn: bigint,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.liquidityPool,
-      'withdraw',
+      "withdraw",
       provider,
-      [provider, sharesToBurn]
+      [provider, sharesToBurn],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `liquidity_pool.deposit_junior` (first-loss tranche).
    */
-  public async buildDepositJuniorTx(provider: string, amountUsdc: bigint): Promise<string> {
+  public async buildDepositJuniorTx(
+    provider: string,
+    amountUsdc: bigint,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.liquidityPool,
-      'deposit_junior',
+      "deposit_junior",
       provider,
-      [provider, amountUsdc]
+      [provider, amountUsdc],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `liquidity_pool.withdraw_junior`.
    */
-  public async buildWithdrawJuniorTx(provider: string, sharesToBurn: bigint): Promise<string> {
+  public async buildWithdrawJuniorTx(
+    provider: string,
+    sharesToBurn: bigint,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.liquidityPool,
-      'withdraw_junior',
+      "withdraw_junior",
       provider,
-      [provider, sharesToBurn]
+      [provider, sharesToBurn],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `liquidity_pool.set_junior_yield_bps` (admin only).
    */
-  public async buildSetJuniorYieldBpsTx(admin: string, bps: number): Promise<string> {
+  public async buildSetJuniorYieldBpsTx(
+    admin: string,
+    bps: number,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.liquidityPool,
-      'set_junior_yield_bps',
+      "set_junior_yield_bps",
       admin,
-      [admin, bps]
+      [admin, bps],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `factoring_escrow.set_paused` (admin only).
    */
-  public async buildSetEscrowPausedTx(admin: string, paused: boolean): Promise<string> {
+  public async buildSetEscrowPausedTx(
+    admin: string,
+    paused: boolean,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.factoringEscrow,
-      'set_paused',
+      "set_paused",
       admin,
-      [admin, paused]
+      [admin, paused],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `factoring_escrow.update_rate_config` (admin only).
    */
-  public async buildUpdateRateConfigTx(admin: string, rateConfig: RateConfig): Promise<string> {
+  public async buildUpdateRateConfigTx(
+    admin: string,
+    rateConfig: RateConfig,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.factoringEscrow,
-      'update_rate_config',
+      "update_rate_config",
       admin,
-      [admin, rateConfig]
+      [admin, rateConfig],
     );
   }
 
   /**
    * Builds a Soroban transaction invoking `factoring_escrow.transfer_admin` (admin only).
    */
-  public async buildTransferEscrowAdminTx(admin: string, newAdmin: string): Promise<string> {
+  public async buildTransferEscrowAdminTx(
+    admin: string,
+    newAdmin: string,
+  ): Promise<string> {
     return this.encodeEnvelope(
       this.config.contracts.factoringEscrow,
-      'transfer_admin',
+      "transfer_admin",
       admin,
-      [admin, newAdmin]
+      [admin, newAdmin],
     );
   }
 }

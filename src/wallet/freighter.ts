@@ -1,4 +1,4 @@
-import * as freighterApi from '@stellar/freighter-api';
+import * as freighterApi from "@stellar/freighter-api";
 
 export interface FreighterConnectionResult {
   publicKey: string;
@@ -12,7 +12,7 @@ export interface FreighterConnectionResult {
 export class FreighterWalletAdapter {
   private readonly networkPassphrase: string;
 
-  constructor(networkPassphrase = 'Test SDF Network ; September 2015') {
+  constructor(networkPassphrase = "Test SDF Network ; September 2015") {
     this.networkPassphrase = networkPassphrase;
   }
 
@@ -22,8 +22,9 @@ export class FreighterWalletAdapter {
   public async isConnected(): Promise<boolean> {
     try {
       const res = await freighterApi.isConnected();
-      return typeof res === 'object' && res !== null
-        ? Boolean((res as { isConnected?: boolean }).isConnected) : Boolean(res);
+      return typeof res === "object" && res !== null
+        ? Boolean((res as { isConnected?: boolean }).isConnected)
+        : Boolean(res);
     } catch {
       return false;
     }
@@ -35,13 +36,16 @@ export class FreighterWalletAdapter {
   public async connect(): Promise<FreighterConnectionResult> {
     const publicKey = await freighterApi.requestAccess();
     if (!publicKey) {
-      throw new Error('Freighter access denied or no public key returned');
+      throw new Error("Freighter access denied or no public key returned");
     }
     const netDetails = await freighterApi.getNetworkDetails();
-    if (netDetails.networkPassphrase !== this.networkPassphrase) throw new Error('Freighter network does not match the configured network');
+    if (netDetails.networkPassphrase !== this.networkPassphrase)
+      throw new Error(
+        "Freighter network does not match the configured network",
+      );
     return {
       publicKey,
-      network: netDetails.network || 'TESTNET',
+      network: netDetails.network || "TESTNET",
       networkPassphrase: netDetails.networkPassphrase,
     };
   }
@@ -49,13 +53,16 @@ export class FreighterWalletAdapter {
   /**
    * Signs a Soroban transaction XDR string using Freighter.
    */
-  public async signTransaction(xdr: string, accountToSign?: string): Promise<string> {
+  public async signTransaction(
+    xdr: string,
+    accountToSign?: string,
+  ): Promise<string> {
     const signedTxXdr = await freighterApi.signTransaction(xdr, {
       networkPassphrase: this.networkPassphrase,
       accountToSign,
     });
     if (!signedTxXdr) {
-      throw new Error('Freighter signing returned empty transaction XDR');
+      throw new Error("Freighter signing returned empty transaction XDR");
     }
     return signedTxXdr;
   }
@@ -63,7 +70,10 @@ export class FreighterWalletAdapter {
   /**
    * Signs a SEP-10 Web Authentication challenge transaction XDR with Freighter.
    */
-  public async signSep10Challenge(challengeXdr: string, clientPublicKey: string): Promise<string> {
+  public async signSep10Challenge(
+    challengeXdr: string,
+    clientPublicKey: string,
+  ): Promise<string> {
     return this.signTransaction(challengeXdr, clientPublicKey);
   }
 }

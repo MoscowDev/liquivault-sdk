@@ -9,9 +9,9 @@ import {
   PoolState,
   TransactionResult,
   WithdrawPreview,
-} from '../types';
-import { LiquiVaultTransactionBuilder } from '../builders/transactionBuilder';
-import { StellarRpcHelper } from '../wallet/rpc';
+} from "../types";
+import { LiquiVaultTransactionBuilder } from "../builders/transactionBuilder";
+import { StellarRpcHelper } from "../wallet/rpc";
 
 const SHARE_PRICE_SCALE = 10_000_000n;
 const BPS_SCALE = 10_000n;
@@ -36,10 +36,10 @@ export class LiquidityPoolClient {
   public async deposit(
     provider: string,
     amountUsdc: bigint,
-    signTransaction: (xdr: string) => Promise<string>
+    signTransaction: (xdr: string) => Promise<string>,
   ): Promise<TransactionResult<bigint>> {
     if (amountUsdc <= 0n) {
-      throw new Error('Deposit amount must be greater than zero');
+      throw new Error("Deposit amount must be greater than zero");
     }
     const txXdr = await this.builder.buildDepositTx(provider, amountUsdc);
     return this.rpc.executeContractCall<bigint>(txXdr, signTransaction);
@@ -51,10 +51,10 @@ export class LiquidityPoolClient {
   public async withdraw(
     provider: string,
     sharesToBurn: bigint,
-    signTransaction: (xdr: string) => Promise<string>
+    signTransaction: (xdr: string) => Promise<string>,
   ): Promise<TransactionResult<bigint>> {
     if (sharesToBurn <= 0n) {
-      throw new Error('Shares to burn must be greater than zero');
+      throw new Error("Shares to burn must be greater than zero");
     }
     const txXdr = await this.builder.buildWithdrawTx(provider, sharesToBurn);
     return this.rpc.executeContractCall<bigint>(txXdr, signTransaction);
@@ -66,8 +66,8 @@ export class LiquidityPoolClient {
   public async getPoolState(): Promise<PoolState> {
     return this.rpc.simulateViewCall<PoolState>(
       this.config.contracts.liquidityPool,
-      'get_pool_state',
-      []
+      "get_pool_state",
+      [],
     );
   }
 
@@ -77,17 +77,22 @@ export class LiquidityPoolClient {
   public async getLPPosition(provider: string): Promise<LPPosition> {
     return this.rpc.simulateViewCall<LPPosition>(
       this.config.contracts.liquidityPool,
-      'get_position',
-      [provider]
+      "get_position",
+      [provider],
     );
   }
 
   /**
    * Converts a USDC deposit amount into expected LP shares based on pool state.
    */
-  public convertToShares(assets: bigint, totalAssets: bigint, totalShares: bigint): bigint {
-    if (assets <= 0n) throw new Error('Assets must be positive');
-    if (totalShares > 0n && totalAssets === 0n) throw new Error('Tranche wiped out');
+  public convertToShares(
+    assets: bigint,
+    totalAssets: bigint,
+    totalShares: bigint,
+  ): bigint {
+    if (assets <= 0n) throw new Error("Assets must be positive");
+    if (totalShares > 0n && totalAssets === 0n)
+      throw new Error("Tranche wiped out");
     if (totalShares === 0n) return assets;
     return (assets * totalShares) / totalAssets;
   }
@@ -95,8 +100,12 @@ export class LiquidityPoolClient {
   /**
    * Converts LP shares into redeemable USDC assets based on pool state.
    */
-  public convertToAssets(shares: bigint, totalAssets: bigint, totalShares: bigint): bigint {
-    if (shares <= 0n) throw new Error('Shares must be positive');
+  public convertToAssets(
+    shares: bigint,
+    totalAssets: bigint,
+    totalShares: bigint,
+  ): bigint {
+    if (shares <= 0n) throw new Error("Shares must be positive");
     if (totalShares === 0n) return 0n;
     return (shares * totalAssets) / totalShares;
   }
@@ -105,14 +114,20 @@ export class LiquidityPoolClient {
    * Previews a USDC deposit including share price and pool share percentage.
    */
   public previewDeposit(assets: bigint, pool: PoolState): DepositPreview {
-    const sharesToMint = this.convertToShares(assets, pool.totalAssets, pool.totalShares);
+    const sharesToMint = this.convertToShares(
+      assets,
+      pool.totalAssets,
+      pool.totalShares,
+    );
     const sharePrice =
       pool.totalShares === 0n
         ? SHARE_PRICE_SCALE
         : (pool.totalAssets * SHARE_PRICE_SCALE) / pool.totalShares;
     const newTotalShares = pool.totalShares + sharesToMint;
     const poolShareBps =
-      newTotalShares === 0n ? 10000 : Number((sharesToMint * BPS_SCALE) / newTotalShares);
+      newTotalShares === 0n
+        ? 10000
+        : Number((sharesToMint * BPS_SCALE) / newTotalShares);
 
     return {
       assetsDeposited: assets,
@@ -125,13 +140,22 @@ export class LiquidityPoolClient {
   /**
    * Previews an LP share withdrawal and checks idle liquidity sufficiency.
    */
-  public previewWithdraw(sharesToBurn: bigint, pool: PoolState, junior?: JuniorState): WithdrawPreview {
-    const assetsToReceive = this.convertToAssets(sharesToBurn, pool.totalAssets, pool.totalShares);
+  public previewWithdraw(
+    sharesToBurn: bigint,
+    pool: PoolState,
+    junior?: JuniorState,
+  ): WithdrawPreview {
+    const assetsToReceive = this.convertToAssets(
+      sharesToBurn,
+      pool.totalAssets,
+      pool.totalShares,
+    );
     const sharePrice =
       pool.totalShares === 0n
         ? SHARE_PRICE_SCALE
         : (pool.totalAssets * SHARE_PRICE_SCALE) / pool.totalShares;
-    const idleLiquidity = pool.totalAssets + (junior?.totalAssets ?? 0n) - pool.deployedCapital;
+    const idleLiquidity =
+      pool.totalAssets + (junior?.totalAssets ?? 0n) - pool.deployedCapital;
 
     return {
       sharesBurned: sharesToBurn,
@@ -146,14 +170,18 @@ export class LiquidityPoolClient {
    */
   public calculateCurrentAPY(
     pool: PoolState,
-    weightedDiscountRateBps = 1050
+    weightedDiscountRateBps = 1050,
   ): { utilizationBps: number; netApyBps: number } {
     if (pool.totalAssets <= 0n) {
       return { utilizationBps: 0, netApyBps: 0 };
     }
-    const utilizationBps = Number((pool.deployedCapital * BPS_SCALE) / pool.totalAssets);
+    const utilizationBps = Number(
+      (pool.deployedCapital * BPS_SCALE) / pool.totalAssets,
+    );
     const netFactorBps = 10_000 - pool.reserveFactorBps;
-    const grossPoolYieldBps = Math.floor((utilizationBps * weightedDiscountRateBps) / 10_000);
+    const grossPoolYieldBps = Math.floor(
+      (utilizationBps * weightedDiscountRateBps) / 10_000,
+    );
     const netApyBps = Math.floor((grossPoolYieldBps * netFactorBps) / 10_000);
     return { utilizationBps, netApyBps };
   }
@@ -174,10 +202,10 @@ export class LiquidityPoolClient {
   public async depositJunior(
     provider: string,
     amountUsdc: bigint,
-    signTransaction: (xdr: string) => Promise<string>
+    signTransaction: (xdr: string) => Promise<string>,
   ): Promise<TransactionResult<bigint>> {
     if (amountUsdc <= 0n) {
-      throw new Error('Deposit amount must be greater than zero');
+      throw new Error("Deposit amount must be greater than zero");
     }
     const txXdr = await this.builder.buildDepositJuniorTx(provider, amountUsdc);
     return this.rpc.executeContractCall<bigint>(txXdr, signTransaction);
@@ -190,12 +218,15 @@ export class LiquidityPoolClient {
   public async withdrawJunior(
     provider: string,
     sharesToBurn: bigint,
-    signTransaction: (xdr: string) => Promise<string>
+    signTransaction: (xdr: string) => Promise<string>,
   ): Promise<TransactionResult<bigint>> {
     if (sharesToBurn <= 0n) {
-      throw new Error('Shares to burn must be greater than zero');
+      throw new Error("Shares to burn must be greater than zero");
     }
-    const txXdr = await this.builder.buildWithdrawJuniorTx(provider, sharesToBurn);
+    const txXdr = await this.builder.buildWithdrawJuniorTx(
+      provider,
+      sharesToBurn,
+    );
     return this.rpc.executeContractCall<bigint>(txXdr, signTransaction);
   }
 
@@ -203,8 +234,8 @@ export class LiquidityPoolClient {
   public async getJuniorState(): Promise<JuniorState> {
     return this.rpc.simulateViewCall<JuniorState>(
       this.config.contracts.liquidityPool,
-      'get_junior_state',
-      []
+      "get_junior_state",
+      [],
     );
   }
 
@@ -212,8 +243,8 @@ export class LiquidityPoolClient {
   public async getJuniorPosition(provider: string): Promise<LPPosition> {
     return this.rpc.simulateViewCall<LPPosition>(
       this.config.contracts.liquidityPool,
-      'get_junior_position',
-      [provider]
+      "get_junior_position",
+      [provider],
     );
   }
 
@@ -224,14 +255,19 @@ export class LiquidityPoolClient {
   public previewWithdrawJunior(
     sharesToBurn: bigint,
     pool: PoolState,
-    junior: JuniorState
+    junior: JuniorState,
   ): JuniorWithdrawPreview {
-    const assetsToReceive = this.convertToAssets(sharesToBurn, junior.totalAssets, junior.totalShares);
+    const assetsToReceive = this.convertToAssets(
+      sharesToBurn,
+      junior.totalAssets,
+      junior.totalShares,
+    );
     const sharePrice =
       junior.totalShares === 0n
         ? SHARE_PRICE_SCALE
         : (junior.totalAssets * SHARE_PRICE_SCALE) / junior.totalShares;
-    const idleLiquidity = pool.totalAssets + junior.totalAssets - pool.deployedCapital;
+    const idleLiquidity =
+      pool.totalAssets + junior.totalAssets - pool.deployedCapital;
     const remainingJuniorAssets = junior.totalAssets - assetsToReceive;
     const coverageSatisfied =
       remainingJuniorAssets * BPS_SCALE >=
@@ -256,13 +292,16 @@ export class LiquidityPoolClient {
     reserveFactorBps: number,
     junior: JuniorState,
     seniorAssets: bigint,
-    juniorYieldBps: bigint = LiquidityPoolClient.DEFAULT_JUNIOR_YIELD_BPS
+    juniorYieldBps: bigint = LiquidityPoolClient.DEFAULT_JUNIOR_YIELD_BPS,
   ): YieldSplit {
     const protocolCut = (grossYield * BigInt(reserveFactorBps)) / BPS_SCALE;
     const lpYield = grossYield - protocolCut;
-    const capitalBps = junior.totalAssets > 0n ? junior.totalAssets * BPS_SCALE / (junior.totalAssets + seniorAssets) : 0n;
+    const capitalBps =
+      junior.totalAssets > 0n
+        ? (junior.totalAssets * BPS_SCALE) / (junior.totalAssets + seniorAssets)
+        : 0n;
     const cappedBps = juniorYieldBps < capitalBps ? juniorYieldBps : capitalBps;
-    const juniorYield = lpYield * cappedBps / BPS_SCALE;
+    const juniorYield = (lpYield * cappedBps) / BPS_SCALE;
     return { juniorYield, seniorYield: lpYield - juniorYield, protocolCut };
   }
 
@@ -271,6 +310,9 @@ export class LiquidityPoolClient {
    */
   public splitLoss(defaultedPrincipal: bigint, junior: JuniorState): LossSplit {
     const juniorLoss =
-      defaultedPrincipal < junior.totalAssets ? defaultedPrincipal : junior.totalAssets;
+      defaultedPrincipal < junior.totalAssets
+        ? defaultedPrincipal
+        : junior.totalAssets;
     return { juniorLoss, seniorLoss: defaultedPrincipal - juniorLoss };
-  }}
+  }
+}

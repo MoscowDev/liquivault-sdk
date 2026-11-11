@@ -1,44 +1,29 @@
-# `@liquivault/sdk` — LiquiVault TypeScript SDK
+# @liquivault/sdk
 
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](../LICENSE)
-[![Stellar Protocol](https://img.shields.io/badge/Stellar_Protocol-21%20%7C%2022-brightgreen.svg)](https://stellar.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)](https://www.typescriptlang.org)
-[![Build](https://img.shields.io/badge/Build-ESM%20%2B%20CJS-green.svg)](./package.json)
-[![Test Suite](https://img.shields.io/badge/Tests-11%2F11%20Passed-success.svg)](../docs/EVIDENCE.md)
+[![CI](https://github.com/MoscowDev/liquivault-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/MoscowDev/liquivault-sdk/actions/workflows/ci.yml)
+[MIT license](LICENSE)
 
-TypeScript SDK (dual ESM and CJS distributions) for interacting with the **LiquiVault** decentralized invoice factoring and liquidity pool protocol on **Stellar Soroban**.
+TypeScript clients for LiquiVault's experimental Stellar Soroban contracts. Requires Node.js 22.13+ for the documented tooling. Testnet demonstrations use a custom test token, not Circle-issued USDC.
 
----
+## Install and verify
 
-## 1. Architecture & Package Modules
-
-```text
-src/
-├── index.ts              # Unified LiquiVaultSDK entrypoint
-├── contracts/            # High-level typed contract wrappers
-│   ├── InvoiceRegistryClient.ts
-│   ├── LiquidityPoolClient.ts
-│   └── FactoringEscrowClient.ts
-├── builders/             # Low-level Soroban transaction envelope builders
-│   └── LiquiVaultTransactionBuilder.ts
-├── wallet/               # Freighter wallet connection and SEP-10 authentication
-│   ├── FreighterWalletAdapter.ts
-│   └── StellarRpcHelper.ts
-└── types/                # Canonical TypeScript interfaces & ScVal converters
-    └── index.ts
+```sh
+git clone https://github.com/MoscowDev/liquivault-sdk.git
+cd liquivault-sdk
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm run example
+npm audit
 ```
 
----
+Installation builds `dist/` through `prepare`. Bundles support ESM/CommonJS and include declarations. No npm publication is implied by the package name; the frontend currently uses a sibling checkout. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## 2. Installation & Quickstart
+## Read and preview
 
-```bash
-npm install @liquivault/sdk @stellar/stellar-sdk
-```
-
-### Initializing the SDK
-```typescript
-import { LiquiVaultSDK, RiskTier } from '@liquivault/sdk';
+```ts
+import { LiquiVaultSDK } from '@liquivault/sdk';
 
 const sdk = new LiquiVaultSDK({
   network: {
@@ -47,82 +32,53 @@ const sdk = new LiquiVaultSDK({
     horizonUrl: 'https://horizon-testnet.stellar.org',
     networkPassphrase: 'Test SDF Network ; September 2015',
   },
-  contracts: {
-    invoiceRegistry: 'CBREGISTRY...',
-    liquidityPool: 'CBPOOL...',
-    factoringEscrow: 'CBESCROW...',
-    usdcToken: 'CBUSDC...',
-  },
+  contracts: deployment.contracts, // Load the published testnet JSON record.
 });
+const pool = await sdk.liquidityPool.getPoolState();
+const invoice = await sdk.invoiceRegistry.getInvoice(1n);
+// Only use an unexpired invoice when requesting its current quote:
+const quote = await sdk.factoringEscrow.previewFactoringQuote(invoice.invoiceId);
 ```
 
-### Calculating Factoring Quotes Offline
-```typescript
-// Instant local quote calculation matching on-chain Soroban integer math
-const quote = sdk.factoringEscrow.calculateAlgorithmicDiscount(
-  1n,
-  100_000_0000000n, // 100,000 USDC face value
-  RiskTier.TierB,    // 10.00% APR
-  Math.floor(Date.now() / 1000) + 86400 * 73 // 73 days to maturity
-);
+`examples/testnet_quote.mjs` is an executable network example. `examples/live_proof.mjs` is explicitly an offline arithmetic example; it submits no transactions.
 
-console.log('Time Discount:', quote.timeDiscount); // 2,000 USDC
-console.log('Origination Fee:', quote.originationFee); // 500 USDC
-console.log('Net Payout to Merchant:', quote.netPayout); // 97,500 USDC
-```
+## Signed writes
 
-### Minting an Invoice with Document Hash Commitment
-```typescript
-import { computeInvoiceMetadataHash } from '@liquivault/sdk';
+```ts
+import { RiskTier } from '@liquivault/sdk';
 
-// 1. Generate RFC-6902 deterministic SHA-256 document commitment
-const metadataHash = computeInvoiceMetadataHash({
-  invoiceNumber: 'INV-2026-0042',
-  debtorTaxId: 'US-987654321',
-  itemDescription: 'Industrial Automation Sensors',
-  shippingCarrier: 'Maersk',
-  billOfLading: 'BL-98127391',
-});
-
-// 2. Build and sign Soroban invocation transaction
-const tx = await sdk.invoiceRegistry.buildMintInvoiceTx({
-  merchant: merchantPublicKey,
+const wallet = await sdk.wallet.connect();
+const sign = (xdr: string) => sdk.wallet.signTransaction(xdr, wallet.publicKey);
+const result = await sdk.invoiceRegistry.createInvoice({
+  merchant: wallet.publicKey,
   debtor: debtorPublicKey,
-  faceValue: 100_000_0000000n,
-  maturity: Math.floor(Date.now() / 1000) + 86400 * 73,
-  invoiceRef: 'INV-2026-0042',
-  metadataHash,
-});
+  faceValue: 100_0000000n, // 100 test tokens, seven decimals.
+  maturityTimestamp: Math.floor(Date.now() / 1000) + 86400 * 30,
+  metadataHash: sdk.invoiceRegistry.computeMetadataHash({ invoiceNumber: 'EXAMPLE-001' }),
+  invoiceNumber: 'EXAMPLE-001',
+  riskTier: RiskTier.TierB,
+}, sign);
+console.log(result.txHash, result.ledger, result.returnValue);
 ```
 
----
+The source must be funded. Minting creates `Issued`, not `Verified`; a configured verifier/admin must approve separately. The SDK fetches the source sequence, builds a real Stellar transaction, prepares footprint/auth/resource fees, asks the wallet to sign, validates the body and polls for confirmation. `PENDING` is not success. A failed ledger transaction raises an error. Inspect any reported hash before retrying a timeout or interrupted confirmation. Serialize writes from the same source account, including writes from other tabs/tools.
 
-## 3. Build & Test Commands
+## Types and limitations
 
-```bash
-# Run Vitest test suite (11 tests)
-npm test
+Invoice IDs and maturity values encode as `u64`; token values/shares as `i128`; risk tiers as `u32`; rate fields use symbol keys. Contract records decode to camelCase. IDs and amounts stay bigint; timestamps become JS numbers. Settlement returns `[lpYield, protocolCut]`; verification returns void.
 
-# Build dual ESM/CJS bundles via tsup
-npm run build
+`calculateAlgorithmicDiscount` is an offline estimate using explicitly supplied/default rates. Use the contract preview for current pricing. `splitYield` requires senior assets as its fourth argument and caps junior yield by capital share. Withdraw previews estimate arithmetic/liquidity and do not authorize withdrawal or bypass the 24-hour lock.
+
+Reads use real RPC simulation, not a custom RPC method. They do not persist state or renew rent. A custom official `rpc.Server` can be supplied for tests/integration; the removed JSON transport/decodeEnvelope format was not a network transaction. Archival recovery, historical indexing, SEP-10 authentication orchestration and SEP-24 are not implemented.
+
+Metadata objects use recursively sorted JSON keys and preserve array order; strings are hashed verbatim. Non-finite/non-JSON values are rejected. This is a deterministic encoding, not a claim of RFC canonicalization. Additional address authorizations (such as the new admin in a role transfer) need appropriate signing coordination; a single source-wallet signature does not automatically authorize a second address.
+
+## Live test
+
+```sh
+LIQUIVAULT_TESTNET=1 npm test -- tests/testnet.test.ts
 ```
 
----
+PowerShell: `$env:LIQUIVAULT_TESTNET='1'; npm test -- tests/testnet.test.ts`. This reads the fixture deployment and prepares an unsigned mint with actual resource/auth data. It never signs or submits. Testnet resets/archival must fail visibly. Signed deployment evidence is maintained in the [contracts record](https://github.com/MoscowDev/liquivault-contracts/blob/main/deployments/testnet.json).
 
-## 4. Documentation Links
-
-- [Protocol Architecture Specification](../docs/architecture.md)
-- [Verified Test Evidence & Proofs](../docs/EVIDENCE.md)
-- [Security Policy & Threat Model](../docs/SECURITY.md)
-- [Storage & TTL Lifecycle Policy](../docs/storage.md)
-
-
-## Network execution and compatibility
-
-Builders now return actual unsigned Stellar transaction XDR and fetch the signer's current sequence from RPC. Submit calls prepare the transaction (footprint, authorization and resource fee) before invoking the wallet callback, and poll `getTransaction` for confirmed return values and ledger numbers. `PENDING` is never treated as success. Confirmation timeouts include the hash so callers can inspect it before retrying. Concurrent writes from one source account must be serialized by the caller.
-
-Reads simulate real `InvokeHostFunction` transactions. Invoice IDs and maturity timestamps use `u64`; token amounts and shares use `i128`. Contract records decode snake_case fields into camelCase, numeric enums into SDK enums, and timestamps into JS numbers. IDs and amounts remain bigint. The optional second constructor argument now accepts an official `rpc.Server` (for testing/customization), replacing the old JSON transport callback. The removed `decodeEnvelope` helper previously decoded a non-transaction JSON format and has no compatible network use.
-
-`splitYield` now requires senior assets as its fourth argument and caps junior yield by its capital share. `calculateAlgorithmicDiscount` is an offline estimate using supplied/default rates; use `previewFactoringQuote` for current on-chain configuration. Quote-only rate annotations are optional because the contract does not return annual rate or origination bps.
-
-Run the opt-in read-only live test with `LIQUIVAULT_TESTNET=1 npm test -- tests/testnet.test.ts` (PowerShell: `$env:LIQUIVAULT_TESTNET='1'; npm test -- tests/testnet.test.ts`). It reads the historical deployment fixture and invoice 1 using real simulation, then prepares an unsigned mint to verify real resource and authorization data. It does not submit transactions or validate the newly repaired contracts until they are deployed. Testnet resets or expired contract storage will make this integration check fail explicitly.
+[Architecture](https://github.com/MoscowDev/LiquiVault/blob/main/docs/architecture.md) | [Security](SECURITY.md) | [Evidence](https://github.com/MoscowDev/LiquiVault/blob/main/docs/EVIDENCE.md)

@@ -5,11 +5,11 @@
 
 export enum RiskTier {
   /** Prime corporate debtor: 600 bps (6.00% APR) */
-  TierA = 'TierA',
+  TierA = "TierA",
   /** Mid-market debtor: 1000 bps (10.00% APR) */
-  TierB = 'TierB',
+  TierB = "TierB",
   /** Emerging SME debtor: 1500 bps (15.00% APR) */
-  TierC = 'TierC',
+  TierC = "TierC",
 }
 
 export const RISK_TIER_RATES_BPS: Record<RiskTier, number> = {
@@ -19,11 +19,11 @@ export const RISK_TIER_RATES_BPS: Record<RiskTier, number> = {
 };
 
 export enum InvoiceStatus {
-  Issued = 'Issued',
-  Verified = 'Verified',
-  Factored = 'Factored',
-  Settled = 'Settled',
-  Defaulted = 'Defaulted',
+  Issued = "Issued",
+  Verified = "Verified",
+  Factored = "Factored",
+  Settled = "Settled",
+  Defaulted = "Defaulted",
 }
 
 export interface InvoiceRecord {
@@ -69,9 +69,9 @@ export interface FactoringQuote {
 }
 
 export enum EscrowStatus {
-  Active = 'Active',
-  Settled = 'Settled',
-  Defaulted = 'Defaulted',
+  Active = "Active",
+  Settled = "Settled",
+  Defaulted = "Defaulted",
 }
 
 export interface EscrowRecord {
@@ -135,7 +135,7 @@ export interface ProtocolAnalytics {
 }
 
 export interface NetworkConfig {
-  network: 'testnet' | 'mainnet' | 'standalone';
+  network: "testnet" | "mainnet" | "standalone";
   rpcUrl: string;
   horizonUrl: string;
   networkPassphrase: string;
@@ -162,7 +162,7 @@ export interface SimulationResult<T = unknown> {
 
 export interface TransactionResult<T = unknown> {
   txHash: string;
-  status: 'SUCCESS' | 'FAILED';
+  status: "SUCCESS" | "FAILED";
   ledger: number;
   returnValue: T;
   feeChargedStroops: string;

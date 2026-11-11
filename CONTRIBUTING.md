@@ -1,46 +1,20 @@
-## LiquiVault SDK Contribution Guide
+# Contributing to the SDK
 
-We appreciate any help improving the LiquiVault TypeScript SDK. Follow these steps to get started.
+Use Node.js 22.13+ and npm. This repository builds/tests independently; deployed contract access is only needed for opt-in network examples/tests.
 
-### 1️⃣ Fork & Clone
-```bash
-# Fork the repo on GitHub first
-git clone https://github.com/<your‑username>/liquivault-sdk.git
+```sh
+git clone https://github.com/MoscowDev/liquivault-sdk.git
 cd liquivault-sdk
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm run example
+npm audit
 ```
 
-### 2️⃣ Create a Branch
-```bash
-git checkout -b my‑sdk‑feature
-```
+Installation runs the package build. Use `npm run format` for formatting and `npm run format:check` to verify it. Ordinary tests must remain deterministic and offline; opt-in tests must identify network dependencies and must not submit transactions by surprise.
 
-### 3️⃣ Install Dependencies
-```bash
-npm ci   # installs exact versions from package-lock.json
-```
+Before opening a PR, link the unfinished issue, explain the changed behavior and validate actual Stellar types/XDR rather than inventing transport responses. Preserve bigint precision, contract wire types and confirmed-result semantics. Document API changes and cross-repository dependencies. Never include keys, tokens, account seeds or local wallet configuration.
 
-### 4️⃣ Development Workflow
-- **Run tests**: `npm test`
-- **Run type‑checking**: `npm run typecheck`
-- **Build the library**: `npm run build`
-- **Lint (if you add eslint config)**: `npm run lint`
-
-### 5️⃣ Commit & Push
-```bash
-git add .
-git commit -m "feat: short description"
-git push origin my‑sdk‑feature
-```
-
-Open a Pull Request on GitHub targeting `main`.
-
-### 6️⃣ Review Checklist (maintainers)
-- ✅ All `npm test` pass.
-- ✅ `npm run typecheck` reports no errors.
-- ✅ Build succeeds (`npm run build`).
-- ✅ Code follows the project’s style and updates docs when needed.
-
-### Resources
-- **SDK docs**: see `README.md`.
-- **Stellar Soroban SDK**: https://soroban.stellar.org/docs
-- **Drips Wave Guidelines**: https://drips.network/wave-guidelines
+The frontend uses a sibling checkout and should be validated after public API changes. Merge/publish SDK changes before dependent frontend changes. Security reports follow [SECURITY.md](SECURITY.md). The [shared guide](https://github.com/MoscowDev/LiquiVault/blob/main/CONTRIBUTING.md) explains review expectations and [Drips' documentation](https://docs.drips.network/wave/maintainers/participating-in-a-wave/) governs Wave participation; no local label guarantees rewards.

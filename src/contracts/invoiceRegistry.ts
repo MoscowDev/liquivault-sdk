@@ -1,5 +1,5 @@
-import { Buffer } from 'buffer';
-import { hash } from '@stellar/stellar-sdk';
+import { Buffer } from "buffer";
+import { hash } from "@stellar/stellar-sdk";
 import {
   CreateInvoiceParams,
   InvoiceRecord,
@@ -7,9 +7,36 @@ import {
   LiquiVaultConfig,
   RiskTier,
   TransactionResult,
-} from '../types';
-import { LiquiVaultTransactionBuilder } from '../builders/transactionBuilder';
-import { StellarRpcHelper } from '../wallet/rpc';
+} from "../types";
+import { LiquiVaultTransactionBuilder } from "../builders/transactionBuilder";
+import { StellarRpcHelper } from "../wallet/rpc";
+
+function stableJson(value: unknown): string {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "number" && Number.isFinite(value))
+    return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return `{${Object.keys(value)
+      .sort()
+      .map(
+        (key) =>
+          `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`,
+      )
+      .join(",")}}`;
+  }
+  throw new Error("Invoice metadata must contain only finite JSON values");
+}
 
 /**
  * Typed client wrapper for the `invoice_registry` Soroban smart contract.
@@ -26,14 +53,17 @@ export class InvoiceRegistryClient {
   }
 
   /**
-   * Computes a deterministic 32-byte SHA-256 hex digest from canonical invoice metadata.
+   * Hashes raw strings verbatim or JSON with recursively sorted object keys.
+   * This deterministic JSON encoding is not a claim of RFC canonicalization.
    */
-  public computeMetadataHash(metadataJson: string | Record<string, unknown>): string {
+  public computeMetadataHash(
+    metadataJson: string | Record<string, unknown>,
+  ): string {
     const payload =
-      typeof metadataJson === 'string'
+      typeof metadataJson === "string"
         ? metadataJson
-        : JSON.stringify(metadataJson, Object.keys(metadataJson).sort());
-    return Buffer.from(hash(Buffer.from(payload, 'utf8'))).toString('hex');
+        : stableJson(metadataJson);
+    return Buffer.from(hash(Buffer.from(payload, "utf8"))).toString("hex");
   }
 
   /**
@@ -41,17 +71,17 @@ export class InvoiceRegistryClient {
    */
   public async createInvoice(
     params: CreateInvoiceParams,
-    signTransaction: (xdr: string) => Promise<string>
+    signTransaction: (xdr: string) => Promise<string>,
   ): Promise<TransactionResult<bigint>> {
     if (params.faceValue <= 0n) {
-      throw new Error('Invoice faceValue must be strictly positive');
+      throw new Error("Invoice faceValue must be strictly positive");
     }
     const nowSec = Math.floor(Date.now() / 1000);
     if (params.maturityTimestamp <= nowSec) {
-      throw new Error('Invoice maturityTimestamp must be in the future');
+      throw new Error("Invoice maturityTimestamp must be in the future");
     }
     if (params.merchant === params.debtor) {
-      throw new Error('Merchant and debtor cannot be the same Stellar address');
+      throw new Error("Merchant and debtor cannot be the same Stellar address");
     }
 
     const txXdr = await this.builder.buildMintInvoiceTx(params);
@@ -65,9 +95,13 @@ export class InvoiceRegistryClient {
     caller: string,
     invoiceId: bigint,
     riskTier: RiskTier,
-    signTransaction: (xdr: string) => Promise<string>
+    signTransaction: (xdr: string) => Promise<string>,
   ): Promise<TransactionResult<void>> {
-    const txXdr = await this.builder.buildVerifyInvoiceTx(caller, invoiceId, riskTier);
+    const txXdr = await this.builder.buildVerifyInvoiceTx(
+      caller,
+      invoiceId,
+      riskTier,
+    );
     return this.rpc.executeContractCall<void>(txXdr, signTransaction);
   }
 
@@ -77,8 +111,8 @@ export class InvoiceRegistryClient {
   public async getInvoice(invoiceId: bigint): Promise<InvoiceRecord> {
     return this.rpc.simulateViewCall<InvoiceRecord>(
       this.config.contracts.invoiceRegistry,
-      'get_invoice',
-      [invoiceId]
+      "get_invoice",
+      [invoiceId],
     );
   }
 
@@ -88,15 +122,18 @@ export class InvoiceRegistryClient {
   public async getMerchantInvoices(merchant: string): Promise<bigint[]> {
     return this.rpc.simulateViewCall<bigint[]>(
       this.config.contracts.invoiceRegistry,
-      'get_merchant_invoices',
-      [merchant]
+      "get_merchant_invoices",
+      [merchant],
     );
   }
 
   /**
    * Verifies whether `candidateAddress` is the current on-chain owner of `invoiceId`.
    */
-  public async verifyOwnership(invoiceId: bigint, candidateAddress: string): Promise<boolean> {
+  public async verifyOwnership(
+    invoiceId: bigint,
+    candidateAddress: string,
+  ): Promise<boolean> {
     const invoice = await this.getInvoice(invoiceId);
     return invoice.owner === candidateAddress;
   }
@@ -104,7 +141,10 @@ export class InvoiceRegistryClient {
   /**
    * Checks whether an invoice is eligible for immediate factoring.
    */
-  public isFactorable(invoice: InvoiceRecord, nowSeconds = Math.floor(Date.now() / 1000)): boolean {
+  public isFactorable(
+    invoice: InvoiceRecord,
+    nowSeconds = Math.floor(Date.now() / 1000),
+  ): boolean {
     return (
       invoice.status === InvoiceStatus.Verified &&
       invoice.maturityTimestamp > nowSeconds &&
