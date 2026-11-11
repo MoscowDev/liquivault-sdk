@@ -59,8 +59,8 @@ export interface FactoringQuote {
   faceValue: bigint;
   riskTier: RiskTier;
   durationSeconds: number;
-  annualRateBps: number;
-  originationFeeBps: number;
+  annualRateBps?: number;
+  originationFeeBps?: number;
   timeDiscountAmount: bigint;
   originationFeeAmount: bigint;
   totalDiscount: bigint;

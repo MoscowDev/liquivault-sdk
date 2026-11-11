@@ -115,3 +115,14 @@ npm run build
 - [Verified Test Evidence & Proofs](../docs/EVIDENCE.md)
 - [Security Policy & Threat Model](../docs/SECURITY.md)
 - [Storage & TTL Lifecycle Policy](../docs/storage.md)
+
+
+## Network execution and compatibility
+
+Builders now return actual unsigned Stellar transaction XDR and fetch the signer's current sequence from RPC. Submit calls prepare the transaction (footprint, authorization and resource fee) before invoking the wallet callback, and poll `getTransaction` for confirmed return values and ledger numbers. `PENDING` is never treated as success. Confirmation timeouts include the hash so callers can inspect it before retrying. Concurrent writes from one source account must be serialized by the caller.
+
+Reads simulate real `InvokeHostFunction` transactions. Invoice IDs and maturity timestamps use `u64`; token amounts and shares use `i128`. Contract records decode snake_case fields into camelCase, numeric enums into SDK enums, and timestamps into JS numbers. IDs and amounts remain bigint. The optional second constructor argument now accepts an official `rpc.Server` (for testing/customization), replacing the old JSON transport callback. The removed `decodeEnvelope` helper previously decoded a non-transaction JSON format and has no compatible network use.
+
+`splitYield` now requires senior assets as its fourth argument and caps junior yield by its capital share. `calculateAlgorithmicDiscount` is an offline estimate using supplied/default rates; use `previewFactoringQuote` for current on-chain configuration. Quote-only rate annotations are optional because the contract does not return annual rate or origination bps.
+
+Run the opt-in read-only live test with `LIQUIVAULT_TESTNET=1 npm test -- tests/testnet.test.ts` (PowerShell: `$env:LIQUIVAULT_TESTNET='1'; npm test -- tests/testnet.test.ts`). It reads the historical deployment fixture and invoice 1 using real simulation, then prepares an unsigned mint to verify real resource and authorization data. It does not submit transactions or validate the newly repaired contracts until they are deployed. Testnet resets or expired contract storage will make this integration check fail explicitly.

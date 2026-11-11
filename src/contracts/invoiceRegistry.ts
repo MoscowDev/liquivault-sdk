@@ -1,4 +1,5 @@
-import { createHash } from 'crypto';
+import { Buffer } from 'buffer';
+import { hash } from '@stellar/stellar-sdk';
 import {
   CreateInvoiceParams,
   InvoiceRecord,
@@ -32,7 +33,7 @@ export class InvoiceRegistryClient {
       typeof metadataJson === 'string'
         ? metadataJson
         : JSON.stringify(metadataJson, Object.keys(metadataJson).sort());
-    return createHash('sha256').update(payload).digest('hex');
+    return Buffer.from(hash(Buffer.from(payload, 'utf8'))).toString('hex');
   }
 
   /**
@@ -65,9 +66,9 @@ export class InvoiceRegistryClient {
     invoiceId: bigint,
     riskTier: RiskTier,
     signTransaction: (xdr: string) => Promise<string>
-  ): Promise<TransactionResult<boolean>> {
+  ): Promise<TransactionResult<void>> {
     const txXdr = await this.builder.buildVerifyInvoiceTx(caller, invoiceId, riskTier);
-    return this.rpc.executeContractCall<boolean>(txXdr, signTransaction);
+    return this.rpc.executeContractCall<void>(txXdr, signTransaction);
   }
 
   /**

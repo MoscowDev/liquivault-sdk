@@ -93,9 +93,9 @@ export class FactoringEscrowClient {
     payer: string,
     invoiceId: bigint,
     signTransaction: (xdr: string) => Promise<string>
-  ): Promise<TransactionResult<{ lpYield: bigint; protocolCut: bigint }>> {
+  ): Promise<TransactionResult<[bigint, bigint]>> {
     const txXdr = await this.builder.buildSettleInvoiceTx(payer, invoiceId);
-    return this.rpc.executeContractCall<{ lpYield: bigint; protocolCut: bigint }>(
+    return this.rpc.executeContractCall<[bigint, bigint]>(
       txXdr,
       signTransaction
     );

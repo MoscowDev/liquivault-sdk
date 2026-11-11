@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  InvoiceStatus,
   LiquiVaultConfig,
   LiquiVaultSDK,
   PoolState,
@@ -95,71 +94,6 @@ describe('@liquivault/sdk Unit Tests', () => {
     expect(apy.netApyBps).toBe(792); // 80% * 11% * 90% = 7.92%
   });
 
-  it('executes end-to-end mocked RPC contract calls for minting, factoring, and LP deposit', async () => {
-    const mockTransport = vi.fn(async (_endpoint: string, method: string, _params: Record<string, unknown>) => {
-      if (method === 'simulateTransaction') {
-        return {
-          success: true,
-          returnValue: 42n,
-          minResourceFeeStroops: '10000',
-        };
-      }
-      if (method === 'sendTransaction') {
-        return {
-          hash: 'tx_soroban_hash_0001',
-          status: 'SUCCESS',
-          ledger: 512340,
-        };
-      }
-      if (method === 'simulateViewCall') {
-        return {
-          returnValue: {
-            invoiceId: 42n,
-            merchant: 'GMERCHANT123',
-            debtor: 'GDEBTOR456',
-            owner: 'GMERCHANT123',
-            faceValue: 50_000_0000000n,
-            advanceAmount: 0n,
-            discountBps: 0,
-            issuedAt: 1_700_000_000,
-            maturityTimestamp: 1_790_000_000,
-            metadataHash: 'a'.repeat(64),
-            invoiceNumber: 'INV-42',
-            riskTier: RiskTier.TierA,
-            status: InvoiceStatus.Verified,
-            currency: MOCK_CONFIG.contracts.usdcToken,
-          },
-        };
-      }
-      return {};
-    });
-
-    const sdk = new LiquiVaultSDK(MOCK_CONFIG, mockTransport);
-    const mockSigner = vi.fn(async (xdr: string) => `signed_${xdr}`);
-
-    const mintRes = await sdk.invoiceRegistry.createInvoice(
-      {
-        merchant: 'GMERCHANT123',
-        debtor: 'GDEBTOR456',
-        faceValue: 50_000_0000000n,
-        maturityTimestamp: Math.floor(Date.now() / 1000) + 86400 * 60,
-        metadataHash: 'a'.repeat(64),
-        invoiceNumber: 'INV-42',
-        riskTier: RiskTier.TierA,
-      },
-      mockSigner
-    );
-
-    expect(mintRes.status).toBe('SUCCESS');
-    expect(mintRes.txHash).toBe('tx_soroban_hash_0001');
-    expect(mintRes.returnValue).toBe(42n);
-    expect(mockSigner).toHaveBeenCalledTimes(1);
-
-    const invoice = await sdk.invoiceRegistry.getInvoice(42n);
-    expect(invoice.invoiceId).toBe(42n);
-    expect(sdk.invoiceRegistry.isFactorable(invoice, 1_750_000_000)).toBe(true);
-  });
-
   describe('junior tranche', () => {
     const pool: PoolState = {
       admin: 'GADMIN',
@@ -177,10 +111,10 @@ describe('@liquivault/sdk Unit Tests', () => {
 
     it('splits yield like the contract (10% cut, 30% of LP yield to junior)', () => {
       const sdk = new LiquiVaultSDK(MOCK_CONFIG);
-      const split = sdk.liquidityPool.splitYield(2_000_0000000n, 1000, junior);
+      const split = sdk.liquidityPool.splitYield(2_000_0000000n, 1000, junior, pool.totalAssets);
       expect(split.protocolCut).toBe(200_0000000n);
-      expect(split.juniorYield).toBe(540_0000000n);
-      expect(split.seniorYield).toBe(1_260_0000000n);
+      expect(split.juniorYield).toBe(450_0000000n);
+      expect(split.seniorYield).toBe(1_350_0000000n);
     });
 
     it('gives senior all LP yield when junior is empty', () => {
@@ -188,7 +122,7 @@ describe('@liquivault/sdk Unit Tests', () => {
       const split = sdk.liquidityPool.splitYield(1_000_0000000n, 1000, {
         totalAssets: 0n,
         totalShares: 0n,
-      });
+      }, pool.totalAssets);
       expect(split.juniorYield).toBe(0n);
       expect(split.seniorYield).toBe(900_0000000n);
     });
@@ -217,20 +151,6 @@ describe('@liquivault/sdk Unit Tests', () => {
       expect(all.coverageSatisfied).toBe(false);
     });
 
-    it('builds deposit/withdraw junior transactions targeting the pool contract', async () => {
-      const sdk = new LiquiVaultSDK(MOCK_CONFIG);
-      const dep = sdk.builder.decodeEnvelope(
-        await sdk.builder.buildDepositJuniorTx('GLP', 5n)
-      );
-      expect(dep.method).toBe('deposit_junior');
-      expect(dep.contractId).toBe(MOCK_CONFIG.contracts.liquidityPool);
-      const wd = sdk.builder.decodeEnvelope(await sdk.builder.buildWithdrawJuniorTx('GLP', 3n));
-      expect(wd.method).toBe('withdraw_junior');
-      await expect(
-        sdk.liquidityPool.depositJunior('GLP', 0n, async (x) => x)
-      ).rejects.toThrow();
-    });
-
     it('counts junior assets as idle liquidity for senior withdrawals', () => {
       const sdk = new LiquiVaultSDK(MOCK_CONFIG);
       const tight = { ...pool, deployedCapital: 70_000_0000000n };
@@ -257,5 +177,5 @@ describe('@liquivault/sdk Unit Tests', () => {
         'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
         500_0000000n,
       ]);
-      expect(op.body().switch().name).toBe('invokeHostFunction');
+      expect(op.body.type).toBe('invokeHostFunction');
     });});

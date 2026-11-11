@@ -1,19 +1,12 @@
-import { Address, Contract, nativeToScVal, xdr } from '@stellar/stellar-sdk';
+import { Buffer } from 'buffer';
+import { Account, Address, BASE_FEE, Contract, nativeToScVal, rpc, TransactionBuilder, xdr } from '@stellar/stellar-sdk';
 import { CreateInvoiceParams, LiquiVaultConfig, RateConfig, RiskTier } from '../types';
-
-export interface BuiltTransactionEnvelope {
-  contractId: string;
-  method: string;
-  signer: string;
-  networkPassphrase: string;
-  args: unknown[];
-  xdr: string;
-}
 
 /**
  * Converts a JS/TS value into an authentic Stellar Soroban ScVal.
  */
 export function convertArgToScVal(arg: unknown): xdr.ScVal {
+  if (xdr.ScVal.is(arg)) return arg;
   if (arg === null || arg === undefined) {
     return xdr.ScVal.scvVoid();
   }
@@ -62,45 +55,44 @@ export class LiquiVaultTransactionBuilder {
   /**
    * Encodes a contract call into a deterministic transaction envelope with native Soroban XDR.
    */
-  private encodeEnvelope(
-    contractId: string,
-    method: string,
-    signer: string,
-    args: unknown[]
-  ): string {
-    let operationXdr = '';
-    try {
-      if (contractId.startsWith('C') && contractId.length === 56) {
-        const scArgs = args.map(convertArgToScVal);
-        const contract = new Contract(contractId);
-        const op = contract.call(method, ...scArgs);
-        operationXdr = op.toXDR('base64');
-      }
-    } catch {
-      // Gracefully ignore during unit tests with mock IDs
-    }
-
-    const payload: BuiltTransactionEnvelope = {
-      contractId,
-      method,
-      signer,
-      networkPassphrase: this.config.network.networkPassphrase,
-      args: args.map((a) => (typeof a === 'bigint' ? a.toString() : a)),
-      xdr: operationXdr,
-    };
-    return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  private async encodeEnvelope(contractId: string, method: string, signer: string, args: unknown[]): Promise<string> {
+    const server = new rpc.Server(this.config.network.rpcUrl, { allowHttp: this.config.network.network === 'standalone' });
+    const source = await server.getAccount(signer);
+    return this.buildTransaction(source, contractId, method, args).toXDR();
   }
 
-  public decodeEnvelope(xdrStr: string): BuiltTransactionEnvelope {
-    const raw = Buffer.from(xdrStr, 'base64').toString('utf8');
-    return JSON.parse(raw) as BuiltTransactionEnvelope;
+  public buildTransaction(source: Account, contractId: string, method: string, args: unknown[]) {
+    return new TransactionBuilder(source, { fee: BASE_FEE, networkPassphrase: this.config.network.networkPassphrase })
+      .addOperation(this.buildOperation(contractId, method, args)).setTimeout(300).build();
   }
 
   /**
    * Builds an authentic native Soroban `InvokeHostFunction` operation for a contract call.
    */
   public buildOperation(contractId: string, method: string, args: unknown[]): xdr.Operation {
-    const scArgs = args.map(convertArgToScVal);
+    const u64Methods = ['get_invoice', 'get_escrow_record', 'preview_factoring_quote'];
+    const scArgs = args.map((arg, index) => {
+      if ((u64Methods.includes(method) && index === 0) ||
+          (['verify_invoice', 'factor_invoice', 'settle_invoice', 'mark_defaulted'].includes(method) && index === 1) ||
+          (method === 'mint_invoice' && index === 4)) {
+        return nativeToScVal(BigInt(arg as bigint), { type: 'u64' });
+      }
+      if (method === 'update_rate_config' && index === 1) {
+        const cfg = arg as RateConfig;
+        const fields = {
+          tier_a_annual_bps: nativeToScVal(cfg.tierAAnnualBps, { type: 'u32' }),
+          tier_b_annual_bps: nativeToScVal(cfg.tierBAnnualBps, { type: 'u32' }),
+          tier_c_annual_bps: nativeToScVal(cfg.tierCAnnualBps, { type: 'u32' }),
+          origination_fee_bps: nativeToScVal(cfg.originationFeeBps, { type: 'u32' }),
+          grace_period_seconds: nativeToScVal(cfg.gracePeriodSeconds, { type: 'u64' }),
+        };
+        return xdr.ScVal.scvMap(Object.entries(fields).sort(([a], [b]) => a.localeCompare(b)).map(([key, val]) =>
+          new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol(key), val })));
+      }
+      // invoice_number is a String even when it happens to look like a digest/address.
+      if (method === 'mint_invoice' && index === 6) return xdr.ScVal.scvString(arg as string);
+      return convertArgToScVal(arg);
+    });
     const contract = new Contract(contractId);
     return contract.call(method, ...scArgs);
   }

@@ -87,7 +87,8 @@ export class LiquidityPoolClient {
    */
   public convertToShares(assets: bigint, totalAssets: bigint, totalShares: bigint): bigint {
     if (assets <= 0n) throw new Error('Assets must be positive');
-    if (totalShares === 0n || totalAssets === 0n) return assets;
+    if (totalShares > 0n && totalAssets === 0n) throw new Error('Tranche wiped out');
+    if (totalShares === 0n) return assets;
     return (assets * totalShares) / totalAssets;
   }
 
@@ -254,11 +255,14 @@ export class LiquidityPoolClient {
     grossYield: bigint,
     reserveFactorBps: number,
     junior: JuniorState,
+    seniorAssets: bigint,
     juniorYieldBps: bigint = LiquidityPoolClient.DEFAULT_JUNIOR_YIELD_BPS
   ): YieldSplit {
     const protocolCut = (grossYield * BigInt(reserveFactorBps)) / BPS_SCALE;
     const lpYield = grossYield - protocolCut;
-    const juniorYield = junior.totalAssets > 0n ? (lpYield * juniorYieldBps) / BPS_SCALE : 0n;
+    const capitalBps = junior.totalAssets > 0n ? junior.totalAssets * BPS_SCALE / (junior.totalAssets + seniorAssets) : 0n;
+    const cappedBps = juniorYieldBps < capitalBps ? juniorYieldBps : capitalBps;
+    const juniorYield = lpYield * cappedBps / BPS_SCALE;
     return { juniorYield, seniorYield: lpYield - juniorYield, protocolCut };
   }
 

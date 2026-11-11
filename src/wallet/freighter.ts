@@ -22,7 +22,8 @@ export class FreighterWalletAdapter {
   public async isConnected(): Promise<boolean> {
     try {
       const res = await freighterApi.isConnected();
-      return Boolean(res);
+      return typeof res === 'object' && res !== null
+        ? Boolean((res as { isConnected?: boolean }).isConnected) : Boolean(res);
     } catch {
       return false;
     }
@@ -37,10 +38,11 @@ export class FreighterWalletAdapter {
       throw new Error('Freighter access denied or no public key returned');
     }
     const netDetails = await freighterApi.getNetworkDetails();
+    if (netDetails.networkPassphrase !== this.networkPassphrase) throw new Error('Freighter network does not match the configured network');
     return {
       publicKey,
       network: netDetails.network || 'TESTNET',
-      networkPassphrase: netDetails.networkPassphrase || this.networkPassphrase,
+      networkPassphrase: netDetails.networkPassphrase,
     };
   }
 
