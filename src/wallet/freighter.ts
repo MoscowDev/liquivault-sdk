@@ -7,7 +7,7 @@ export interface FreighterConnectionResult {
 }
 
 /**
- * Adapter for the Stellar Freighter browser extension wallet, including SEP-10 authentication.
+ * Adapter for the Stellar Freighter browser extension wallet. Challenge signing alone does not implement SEP-10 authentication.
  */
 export class FreighterWalletAdapter {
   private readonly networkPassphrase: string;

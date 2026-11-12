@@ -16,6 +16,19 @@ import { LiquiVaultTransactionBuilder } from "../builders/transactionBuilder";
 /** Injectable official RPC server, so tests exercise the same XDR path as production. */
 export type RpcTransportHandler = rpc.Server;
 
+export interface PreparationPlan {
+  networkPassphrase: string;
+  rpcUrl: string;
+  source: string;
+  sequence: string;
+  simulatedAtLedger: number;
+  mode: "normal" | "automatic-restoration" | "manual-restoration-required";
+  /** Simulation estimate, in stroops. Re-simulate before signing. */
+  minResourceFeeStroops: string;
+  restorationKeys: string[];
+  preparedXdr: string | null;
+}
+
 const TIMESTAMP_KEYS = new Set([
   "issuedAt",
   "maturityTimestamp",
@@ -63,6 +76,61 @@ export class StellarRpcHelper {
       new rpc.Server(config.network.rpcUrl, {
         allowHttp: config.network.network === "standalone",
       });
+  }
+  /** Inspect fees and restoration without signing or submitting. Plans expire with ledger/sequence changes. */
+  public async planContractCall(
+    unsignedTxXdr: string,
+  ): Promise<PreparationPlan> {
+    const tx = TransactionBuilder.fromXDR(
+      unsignedTxXdr,
+      this.config.network.networkPassphrase,
+    );
+    if (
+      !(tx instanceof Transaction) ||
+      tx.operations.length !== 1 ||
+      tx.operations[0].type !== "invokeHostFunction"
+    )
+      throw new Error("Restoration planning requires one contract invocation");
+    const sim = await this.server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim))
+      throw new Error(`Simulation failed: ${sim.error}`);
+    const base = {
+      networkPassphrase: this.config.network.networkPassphrase,
+      rpcUrl: this.config.network.rpcUrl,
+      source: tx.source,
+      sequence: tx.sequence,
+      simulatedAtLedger: sim.latestLedger,
+    };
+    if (rpc.Api.isSimulationRestore(sim)) {
+      return {
+        ...base,
+        mode: "manual-restoration-required",
+        minResourceFeeStroops: sim.restorePreamble.minResourceFee,
+        restorationKeys: sim.restorePreamble.transactionData
+          .getReadWrite()
+          .map((key) => key.toXDR("base64")),
+        preparedXdr: null,
+      };
+    }
+    if (!rpc.Api.isSimulationSuccess(sim))
+      throw new Error("Unsupported simulation response");
+    const data = sim.transactionData.build();
+    const indices =
+      data.ext.type === "resourceExt"
+        ? data.ext.resourceExt.archivedSorobanEntries
+        : [];
+    const keys = data.resources.footprint.readWrite;
+    const restorationKeys = indices.map((index) => {
+      if (!keys[index]) throw new Error("Invalid simulation restoration index");
+      return keys[index].toXDR("base64");
+    });
+    return {
+      ...base,
+      mode: indices.length ? "automatic-restoration" : "normal",
+      minResourceFeeStroops: sim.minResourceFee,
+      restorationKeys,
+      preparedXdr: rpc.assembleTransaction(tx, sim).build().toXDR(),
+    };
   }
   public async simulateTransaction<T = unknown>(
     txXdr: string,
