@@ -11,7 +11,7 @@ TypeScript clients for LiquiVault's experimental Stellar Soroban contracts. Requ
 
 `await sdk.rpc.planContractCall(unsignedXdr)` simulates one invocation and returns the configured network/RPC, source/sequence, simulated ledger, minimum resource-fee estimate and restoration keys. Its mode is `normal`, `automatic-restoration` or `manual-restoration-required`. The last mode returns no prepared invocation; a manual recovery planner/executor remains unfinished. Plans neither sign nor submit and become stale as network state or account sequences change. Fees include normal rent/restoration charges and are estimates, not a spending guarantee.
 
-`npm test -- tests/restoration.test.ts` covers normal preparation, Protocol 23 restore-list preservation, a manual preamble and simulation failure using real XDR structures. It does not demonstrate actual archived-ledger recovery. For that, see the [remaining release gates](https://github.com/MoscowDev/LiquiVault/blob/main/docs/RELEASE_CANDIDATE.md).
+`npm test -- tests/restoration.test.ts` covers normal preparation, Protocol 23 restore-list preservation, a manual preamble and simulation failure using real XDR structures. Separately, `examples/archival-recovery.mjs` verifies real expiry, rejected signing and confirmed automatic restoration/withdrawal against an instrumented localhost fixture. Run it through the [contracts recovery runner](https://github.com/MoscowDev/liquivault-contracts/blob/main/docs-local-integration.md). Its shortened timing constants and local hashes are explicitly recorded; it does not claim production-WASM timing or manual-recovery coverage.
 
 ```sh
 git clone https://github.com/MoscowDev/liquivault-sdk.git
